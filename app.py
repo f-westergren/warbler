@@ -5,7 +5,7 @@ from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 
 from forms import UserAddForm, LoginForm, MessageForm, EditUserForm
-from models import db, connect_db, User, Message
+from models import db, connect_db, User, Message, Likes
 
 CURR_USER_KEY = "curr_user"
 
@@ -239,7 +239,44 @@ def profile():
     return render_template('/users/edit.html', form=form)
 
       
+@app.route('/users/add_like/<int:message_id>', methods=['POST'])
+def add_like(message_id):
 
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+    
+    new_like = Likes(user_id=g.user.id, message_id=message_id)
+    db.session.add(new_like)
+    db.session.commit()
+
+    return redirect('/')
+
+@app.route('/users/remove_like/<int:message_id>', methods=['POST'])
+def remove_like(message_id):
+
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+    
+    like = Likes.query.filter_by(message_id=message_id).first()
+    db.session.delete(like)
+    db.session.commit()
+
+    return redirect('/')
+
+@app.route('/users/<int:user_id>/likes')
+def show_likes(user_id):
+
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+
+    user = User.query.get_or_404(user_id)
+    liked_messages = user.likes
+
+    return render_template('/users/likes.html', user=user, liked_messages=liked_messages)
+    
 
 @app.route('/users/delete', methods=["POST"])
 def delete_user():
@@ -321,8 +358,9 @@ def homepage():
     if g.user:
         messages = g.user.get_following_messages()
         messages = messages[:100]
+        likes = g.user.get_likes()
 
-        return render_template('home.html', messages=messages)
+        return render_template('home.html', messages=messages, likes=likes)
 
     else:
         return render_template('home-anon.html')
