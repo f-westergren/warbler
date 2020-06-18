@@ -44,14 +44,12 @@ class UserViewTestCase(TestCase):
 		self.assertIn(f'<h4 id="sidebar-username">@{self.u.username}</h4>', html)
 	
 	def test_show_following(self):
-		print('sess', session)
 		with self.client.session_transaction() as change_session:
 			change_session['curr_user'] = self.uid
 
-			resp = self.client.get(f'/users/{self.uid}/following')
-		
-			
-			self.assertEqual(resp.status_code, 200)
+		resp = self.client.get(f'/users/{self.uid}/following')
+				
+		self.assertEqual(resp.status_code, 200)
 		
 	
 		
