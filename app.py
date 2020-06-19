@@ -358,7 +358,7 @@ def homepage():
     if g.user:
         messages = g.user.get_following_messages()
         messages = messages[:100]
-        likes = g.user.likes
+        likes = g.user.get_likes()
 
         return render_template('home.html', messages=messages, likes=likes)
 

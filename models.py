@@ -136,6 +136,12 @@ class User(db.Model):
             following_messages.extend(u.messages)
         
         return following_messages
+    
+    def get_likes(self):
+        likes = []
+        for l in self.likes:
+            likes.append(l.id)
+        return likes
             
 
     @classmethod
