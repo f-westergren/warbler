@@ -7,6 +7,7 @@
 
 import os
 from unittest import TestCase
+from sqlalchemy import exc
 
 from models import db, connect_db, Message, User
 
@@ -49,6 +50,11 @@ class MessageViewTestCase(TestCase):
                                     password="testuser",
                                     image_url=None)
 
+        self.testuser2 = User.signup(username="testuser2",
+                                    email="test2@test.com",
+                                    password="testuser",
+                                    image_url=None)
+
         db.session.commit()
 
     def test_add_message(self):
@@ -58,8 +64,8 @@ class MessageViewTestCase(TestCase):
         # we need to use the changing-session trick:
 
         with self.client as c:
-            with c.session_transaction() as sess:
-                sess[CURR_USER_KEY] = self.testuser.id
+            with c.session_transaction() as session:
+                session[CURR_USER_KEY] = self.testuser.id
 
             # Now, that session setting is saved, so we can have
             # the rest of ours test
@@ -71,3 +77,98 @@ class MessageViewTestCase(TestCase):
 
             msg = Message.query.one()
             self.assertEqual(msg.text, "Hello")
+
+
+    def test_add_no_session(self):
+        """ Test add message when not logged in """
+
+        res = self.client.post('/messages/new', data={"text": "Hello"})
+
+        # Make sure it redirects
+        self.assertEqual(res.status_code, 302)
+        
+        msg = Message.query.first()
+
+        self.assertIsNone(msg)
+
+
+    def test_add_invalid_user(self):
+        """ Test add message when invalid user """
+        with self.client.session_transaction() as session:
+            session[CURR_USER_KEY] = 12234456 # user does not exist
+
+        res = self.client.post('/messages/new', data={"text": "Hello"})
+        self.assertEqual(res.status_code, 302)
+
+        msg = Message.query.first()
+
+        self.assertIsNone(msg)
+
+    def test_message_show(self):
+        """ Test if message shows up"""
+        m = Message(text="A test message", user_id=self.testuser.id)
+        db.session.add(m)
+        db.session.commit()
+
+        res = self.client.get(f'/messages/{m.id}')
+
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('A test message', str(res.data))
+
+
+    def test_invalid_message_show(self):
+        """ Test if invalid message doesn't show up"""
+        res = self.client.get('/messages/1234') # message does not exist
+
+        self.assertEqual(res.status_code, 404)
+    
+    def create_test_message(self):
+        m = Message(text="A test message", user_id=self.testuser.id)
+        m.id = 12345
+        db.session.add(m)
+        db.session.commit()
+
+        # Check that message exists:
+        msg = Message.query.get(m.id)
+        self.assertEqual(msg.text, 'A test message')
+
+    def test_message_delete(self):
+        """ Test that user can delete own messages """
+        self.create_test_message()
+
+        with self.client.session_transaction() as session:
+                session[CURR_USER_KEY] = self.testuser.id
+        res = self.client.post(f'/messages/12345/delete')
+
+        self.assertEqual(res.status_code, 302)
+    
+        # Check that message has been deleted
+        self.assertIsNone(Message.query.get(12345))
+
+    def test_unathorized_message_delete(self):
+        """ Test that user can't delete other messages """
+
+        self.create_test_message()
+
+        with self.client.session_transaction() as session:
+                session[CURR_USER_KEY] = self.testuser2.id
+        res = self.client.post(f'/messages/12345/delete')      
+
+        self.assertEqual(res.status_code, 302) 
+        
+        # Check that message still exists.
+        msg = Message.query.get(12345)
+        self.assertEqual(msg.text, 'A test message')
+
+    def test_message_delete_no_authentication(self):
+        """ Test if not logged in user can delete message """
+
+        self.create_test_message()
+
+        res = self.client.post(f'/messages/12345/delete')
+
+        self.assertEqual(res.status_code, 302) 
+
+        # Check that message still exists.
+        msg = Message.query.get(12345)
+        self.assertEqual(msg.text, 'A test message')
