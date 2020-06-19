@@ -122,16 +122,17 @@ class UserViewTestCase(TestCase):
 		# Add like
 		res = self.client.post(f'/users/add_like/{self.m.id}',
 			follow_redirects=True)
-
 		html = res.get_data(as_text=True)
 
+		# Check that like has been added to view
 		self.assertEqual(res.status_code, 200)
 		self.assertIn('action="/users/remove_like/', html)
 
+		# Remove like
 		res = self.client.post(f'/users/remove_like/{self.m.id}',
 			follow_redirects=True)
-
 		html = res.get_data(as_text=True)
 
+		# Check that like has been removed from view
 		self.assertEqual(res.status_code, 200)
 		self.assertIn('action="/users/add_like/', html)
