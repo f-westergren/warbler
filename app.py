@@ -217,18 +217,20 @@ def profile():
         flash("Access unauthorized.", "danger")
         return redirect("/")
     
-    form = EditUserForm(obj=g.user)
+    user = g.user
+
+    form = EditUserForm(obj=user)
 
     if form.validate_on_submit():
-        user = User.authenticate(form.username.data,
+        user = User.authenticate(user.username,
                                  form.password.data)
 
         if user:
-            g.user.username = form.username.data
-            g.user.email = form.email.data
-            g.user.image_url = form.image_url.data
-            g.user.header_image_url = form.header_image_url.data
-            g.user.bio = form.bio.data
+            user.username = form.username.data
+            user.email = form.email.data
+            user.image_url = form.image_url.data
+            user.header_image_url = form.header_image_url.data
+            user.bio = form.bio.data
             db.session.commit()
             flash("User information updated!", "success")
             return redirect(f"/users/{g.user.id}")

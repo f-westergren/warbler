@@ -10,6 +10,8 @@ os.environ['DATABASE_URL'] = 'postgresql:///warbler-test'
 
 from app import app, CURR_USER_KEY
 
+app.config['WTF_CSRF_ENABLED'] = False
+
 class UserViewTestCase(TestCase):
 	"""Test views for users """
 
@@ -23,12 +25,14 @@ class UserViewTestCase(TestCase):
 		u2.id = 22222
 		u1.following.append(u2)
 
-		m = Message(text='Test post', user_id=u2.id)
+		m = Message(text='Test post')
 		m.id=12345
 
 		u2.messages.append(m)
 		db.session.commit()
 
+		self.u1_id = u1.id
+		self.u2_id = u2.id
 		self.u1 = User.query.get(u1.id)
 		self.u2 = User.query.get(u2.id)
 		self.m = Message.query.get(m.id)
@@ -115,6 +119,8 @@ class UserViewTestCase(TestCase):
 
 
 	def test_add_and_delete_like(self):
+		""" Test add and delete like functionality """
+
 		# Log in user
 		with self.client.session_transaction() as session:
 			session[CURR_USER_KEY] = self.u1.id
@@ -136,3 +142,81 @@ class UserViewTestCase(TestCase):
 		# Check that like has been removed from view
 		self.assertEqual(res.status_code, 200)
 		self.assertIn('action="/users/add_like/', html)
+	
+	def test_add_like_not_logged_in(self):
+		res = self.client.post(f'/users/add_like/{self.m.id}',
+			follow_redirects=True)
+		html = res.get_data(as_text=True)
+		likes = Likes.query.all()
+		
+		self.assertEqual(res.status_code, 200)
+
+		# Likes should be empty
+		self.assertEqual(len(likes), 0)
+
+		# Should redirect to front page
+		self.assertIn('<p>Sign up now to get your own personalized timeline!</p>', html)
+	
+	def test_login_logout(self):
+		""" Test login and logout"""
+
+		# Test login with correct credentials
+		res = self.client.post('/login', 
+			data={'username': self.u1.username, 'password': 'password'},
+			follow_redirects=True)
+		html = res.get_data(as_text=True)
+
+		self.assertEqual(res.status_code, 200)
+		self.assertIn(f'Hello, {self.u1.username}', html)
+
+		# Test login with invalid username
+		res = self.client.post('/login', 
+			data={'username': 'wrong_username', 'password': 'password'}, 
+			follow_redirects=True)
+		html = res.get_data(as_text=True)
+		
+		self.assertEqual(res.status_code, 200)
+		self.assertIn('Invalid credentials.', html)
+
+		# Test login with invalid password
+		res = self.client.post('/login', 
+			data={'username': self.u1.username, 'password': 'wrong_password'}, 
+			follow_redirects=True)
+		html = res.get_data(as_text=True)
+		
+		self.assertEqual(res.status_code, 200)
+		self.assertIn('Invalid credentials.', html)
+
+		# Test logout when logged in
+		with self.client.session_transaction() as session:
+			session[CURR_USER_KEY] = self.u1.id
+
+		res = self.client.get('/logout',
+			follow_redirects=True)
+		html = res.get_data(as_text=True)
+
+		self.assertIn('<p>Sign up now to get your own personalized timeline!</p>', html)
+
+		# Test logout when not logged in
+		res = self.client.get('/logout',
+			follow_redirects=True)
+		html = res.get_data(as_text=True)
+
+		self.assertIn('<h2 class="join-message">Welcome back.</h2>', html)
+
+# Talk to Alexander about this one
+
+	# def test_edit_profile(self):
+	# 	# Log in user
+	# 	with self.client.session_transaction() as session:
+	# 		session[CURR_USER_KEY] = self.u1.id
+		
+	# 	# Edit profile
+	# 	User.authenticate(self.u1.username, self.u1.password)
+	# 	res = self.client.post('/users/profile/',
+	# 		data={"username": "testestuser", "bio": "testing test"},
+	# 		follow_redirects="True")
+	# 	html = res.get_data(as_text=True)
+
+	# 	self.assertEqual(res.status_code, 200)
+	
